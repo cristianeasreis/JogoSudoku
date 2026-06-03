@@ -19,18 +19,24 @@ class TabuleiroTest {
     @Test
     @DisplayName("Tabuleiro vazio deve ter todos os valores zerados")
     void tabuleiroVazioDeveSerZerado() {
-        for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
-            for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
+        for (int i = 0; i < Tabuleiro.TAMANHO; i++)
+            for (int j = 0; j < Tabuleiro.TAMANHO; j++)
                 assertEquals(Tabuleiro.VAZIO, tabuleiro.getValor(i, j));
-            }
-        }
     }
 
     @Test
-    @DisplayName("Deve definir e obter valor corretamente")
-    void deveDefinirEObterValor() {
+    @DisplayName("Deve definir e obter valor via coordenadas inteiras")
+    void deveDefinirEObterValorPorCoordenadas() {
         tabuleiro.setValor(0, 0, 5);
         assertEquals(5, tabuleiro.getValor(0, 0));
+    }
+
+    @Test
+    @DisplayName("Deve definir e obter valor via Posicao")
+    void deveDefinirEObterValorPorPosicao() {
+        Posicao posicao = new Posicao(2, 3);
+        tabuleiro.setValor(posicao, 7);
+        assertEquals(7, tabuleiro.getValor(posicao));
     }
 
     @Test
@@ -41,14 +47,16 @@ class TabuleiroTest {
     }
 
     @Test
-    @DisplayName("Deve lançar exceção para valor inválido")
+    @DisplayName("Deve lançar exceção para valor inválido na Celula")
     void deveLancarExcecaoParaValorInvalido() {
-        assertThrows(IllegalArgumentException.class, () -> tabuleiro.setValor(0, 0, 10));
-        assertThrows(IllegalArgumentException.class, () -> tabuleiro.setValor(0, 0, -1));
+        // Celula.setValor valida o range
+        Celula celula = Celula.vazia();
+        assertThrows(IllegalArgumentException.class, () -> celula.setValor(10));
+        assertThrows(IllegalArgumentException.class, () -> celula.setValor(-1));
     }
 
     @Test
-    @DisplayName("Célula fixa não deve ser alterada")
+    @DisplayName("Célula fixa não deve ser alterada pelo tabuleiro")
     void celulaFixaNaoDeveSerAlterada() {
         int[][] grade = new int[9][9];
         grade[0][0] = 5;
@@ -66,11 +74,20 @@ class TabuleiroTest {
     }
 
     @Test
+    @DisplayName("getCelula deve retornar a Celula correta via Posicao")
+    void getCelulaDeveFuncionar() {
+        tabuleiro.setValor(1, 1, 9);
+        Celula celula = tabuleiro.getCelula(new Posicao(1, 1));
+        assertEquals(9, celula.getValor());
+        assertFalse(celula.isFixo());
+    }
+
+    @Test
     @DisplayName("toString deve retornar representação visual do tabuleiro")
     void toStringDeveRetornarRepresentacaoVisual() {
         String representacao = tabuleiro.toString();
         assertNotNull(representacao);
         assertTrue(representacao.contains("║"));
+        assertTrue(representacao.contains("."));
     }
 }
-

@@ -1,35 +1,42 @@
 package com.sudoku.service;
 
+import com.sudoku.interfaces.IValidador;
+import com.sudoku.model.Posicao;
 import com.sudoku.model.Tabuleiro;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 /**
- * Serviço responsável por validar e resolver o tabuleiro Sudoku.
+ * Validador de movimentos e estado do tabuleiro Sudoku.
+ *
+ * <p>Princípio OOP aplicado:
+ * <ul>
+ *   <li><b>Polimorfismo</b> — implementa {@link IValidador}, podendo ser
+ *       substituída por outra estratégia de validação sem alterar os clientes.</li>
+ *   <li><b>Responsabilidade Única</b> — cuida apenas da validação das regras
+ *       do Sudoku. A resolução foi delegada para {@link SolverSudoku}.</li>
+ * </ul>
  */
-public class ValidadorSudoku {
+public class ValidadorSudoku implements IValidador {
 
-    /**
-     * Verifica se um valor é válido em uma posição específica.
-     */
-    public boolean isMovimentoValido(Tabuleiro tabuleiro, int linha, int coluna, int valor) {
+    @Override
+    public boolean isMovimentoValido(Tabuleiro tabuleiro, Posicao posicao, int valor) {
         if (valor == Tabuleiro.VAZIO) return true;
-        return !existeNaLinha(tabuleiro, linha, valor, coluna)
-            && !existeNaColuna(tabuleiro, coluna, valor, linha)
-            && !existeNoBloco(tabuleiro, linha, coluna, valor);
+        return !existeNaLinha(tabuleiro, posicao.linha(), valor, posicao.coluna())
+            && !existeNaColuna(tabuleiro, posicao.coluna(), valor, posicao.linha())
+            && !existeNoBloco(tabuleiro, posicao, valor);
     }
 
-    /**
-     * Verifica se o tabuleiro está em um estado válido (sem conflitos).
-     */
+    /** Sobrecarga para compatibilidade com coordenadas inteiras. */
+    public boolean isMovimentoValido(Tabuleiro tabuleiro, int linha, int coluna, int valor) {
+        return isMovimentoValido(tabuleiro, new Posicao(linha, coluna), valor);
+    }
+
+    @Override
     public boolean isTabuleirValido(Tabuleiro tabuleiro) {
         for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
             for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
                 int valor = tabuleiro.getValor(i, j);
                 if (valor != Tabuleiro.VAZIO) {
-                    if (!isMovimentoValidoSemPosicaoAtual(tabuleiro, i, j, valor)) {
+                    if (!isMovimentoValido(tabuleiro, new Posicao(i, j), valor)) {
                         return false;
                     }
                 }
@@ -38,95 +45,38 @@ public class ValidadorSudoku {
         return true;
     }
 
-    /**
-     * Verifica se o tabuleiro foi resolvido corretamente.
-     */
+    @Override
     public boolean isSolucionado(Tabuleiro tabuleiro) {
         return tabuleiro.isCompleto() && isTabuleirValido(tabuleiro);
     }
 
-    /**
-     * Resolve o tabuleiro usando backtracking.
-     * @return true se foi possível resolver
-     */
-    public boolean resolver(Tabuleiro tabuleiro) {
-        int[] posicaoVazia = encontrarPosicaoVazia(tabuleiro);
-        if (posicaoVazia == null) {
-            return tabuleiro.isCompleto();
-        }
+    // ── Privados ──────────────────────────────────────────────────────────────
 
-        int linha = posicaoVazia[0];
-        int coluna = posicaoVazia[1];
-
-        List<Integer> numeros = criarListaEmbaralhada();
-        for (int numero : numeros) {
-            if (isMovimentoValido(tabuleiro, linha, coluna, numero)) {
-                tabuleiro.setValor(linha, coluna, numero);
-                if (resolver(tabuleiro)) {
-                    return true;
-                }
-                tabuleiro.setValor(linha, coluna, Tabuleiro.VAZIO);
-            }
-        }
-        return false;
-    }
-
-    private boolean existeNaLinha(Tabuleiro tabuleiro, int linha, int valor, int ignorarColuna) {
+    private boolean existeNaLinha(Tabuleiro t, int linha, int valor, int ignorarColuna) {
         for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
-            if (j != ignorarColuna && tabuleiro.getValor(linha, j) == valor) {
-                return true;
-            }
+            if (j != ignorarColuna && t.getValor(linha, j) == valor) return true;
         }
         return false;
     }
 
-    private boolean existeNaColuna(Tabuleiro tabuleiro, int coluna, int valor, int ignorarLinha) {
+    private boolean existeNaColuna(Tabuleiro t, int coluna, int valor, int ignorarLinha) {
         for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
-            if (i != ignorarLinha && tabuleiro.getValor(i, coluna) == valor) {
-                return true;
-            }
+            if (i != ignorarLinha && t.getValor(i, coluna) == valor) return true;
         }
         return false;
     }
 
-    private boolean existeNoBloco(Tabuleiro tabuleiro, int linha, int coluna, int valor) {
-        int inicioLinha = (linha / Tabuleiro.TAMANHO_BLOCO) * Tabuleiro.TAMANHO_BLOCO;
-        int inicioColuna = (coluna / Tabuleiro.TAMANHO_BLOCO) * Tabuleiro.TAMANHO_BLOCO;
+    private boolean existeNoBloco(Tabuleiro t, Posicao posicao, int valor) {
+        int inicioLinha = (posicao.linha() / Tabuleiro.TAMANHO_BLOCO) * Tabuleiro.TAMANHO_BLOCO;
+        int inicioColuna = (posicao.coluna() / Tabuleiro.TAMANHO_BLOCO) * Tabuleiro.TAMANHO_BLOCO;
 
         for (int i = inicioLinha; i < inicioLinha + Tabuleiro.TAMANHO_BLOCO; i++) {
             for (int j = inicioColuna; j < inicioColuna + Tabuleiro.TAMANHO_BLOCO; j++) {
-                if ((i != linha || j != coluna) && tabuleiro.getValor(i, j) == valor) {
+                if ((i != posicao.linha() || j != posicao.coluna()) && t.getValor(i, j) == valor) {
                     return true;
                 }
             }
         }
         return false;
     }
-
-    private boolean isMovimentoValidoSemPosicaoAtual(Tabuleiro tabuleiro, int linha, int coluna, int valor) {
-        return !existeNaLinha(tabuleiro, linha, valor, coluna)
-            && !existeNaColuna(tabuleiro, coluna, valor, linha)
-            && !existeNoBloco(tabuleiro, linha, coluna, valor);
-    }
-
-    private int[] encontrarPosicaoVazia(Tabuleiro tabuleiro) {
-        for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
-            for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
-                if (tabuleiro.isVazio(i, j)) {
-                    return new int[]{i, j};
-                }
-            }
-        }
-        return null;
-    }
-
-    private List<Integer> criarListaEmbaralhada() {
-        List<Integer> numeros = new ArrayList<>();
-        for (int i = 1; i <= Tabuleiro.TAMANHO; i++) {
-            numeros.add(i);
-        }
-        Collections.shuffle(numeros);
-        return numeros;
-    }
 }
-

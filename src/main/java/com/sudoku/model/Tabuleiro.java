@@ -1,7 +1,14 @@
 package com.sudoku.model;
 
 /**
- * Representa o tabuleiro do Sudoku (9x9).
+ * Representa o tabuleiro do Sudoku (9×9).
+ *
+ * <p>Internamente armazena um array de {@link Celula}, encapsulando o estado
+ * de cada posição (valor + fixo). Expõe uma API fluente que aceita tanto
+ * coordenadas inteiras quanto o value-object {@link Posicao}.
+ *
+ * <p>Princípio OOP aplicado: <b>Encapsulamento</b> — o estado interno é
+ * protegido e acessado apenas por meio de métodos públicos controlados.
  */
 public class Tabuleiro {
 
@@ -9,82 +16,117 @@ public class Tabuleiro {
     public static final int TAMANHO_BLOCO = 3;
     public static final int VAZIO = 0;
 
-    private final int[][] grade;
-    private final boolean[][] fixo; // células originais que não podem ser alteradas
+    private final Celula[][] celulas;
 
+    /** Cria um tabuleiro vazio (sem células fixas). */
     public Tabuleiro() {
-        this.grade = new int[TAMANHO][TAMANHO];
-        this.fixo = new boolean[TAMANHO][TAMANHO];
+        celulas = new Celula[TAMANHO][TAMANHO];
+        for (int i = 0; i < TAMANHO; i++)
+            for (int j = 0; j < TAMANHO; j++)
+                celulas[i][j] = Celula.vazia();
     }
 
-    public Tabuleiro(int[][] gradaInicial) {
-        this.grade = new int[TAMANHO][TAMANHO];
-        this.fixo = new boolean[TAMANHO][TAMANHO];
+    /** Cria um tabuleiro a partir de uma grade int[][]. Valores != 0 são fixos. */
+    public Tabuleiro(int[][] gradeInicial) {
+        celulas = new Celula[TAMANHO][TAMANHO];
         for (int i = 0; i < TAMANHO; i++) {
             for (int j = 0; j < TAMANHO; j++) {
-                this.grade[i][j] = gradaInicial[i][j];
-                if (gradaInicial[i][j] != VAZIO) {
-                    this.fixo[i][j] = true;
-                }
+                int v = gradeInicial[i][j];
+                celulas[i][j] = (v != VAZIO) ? Celula.fixa(v) : Celula.vazia();
             }
         }
     }
 
+    // ── Acesso via coordenadas inteiras ───────────────────────────────────────
+
     public int getValor(int linha, int coluna) {
-        validarPosicao(linha, coluna);
-        return grade[linha][coluna];
+        return getCelula(linha, coluna).getValor();
     }
 
+    /**
+     * Define o valor de uma célula.
+     * @return {@code false} se a célula for fixa; {@code true} se o valor foi aplicado.
+     */
     public boolean setValor(int linha, int coluna, int valor) {
-        validarPosicao(linha, coluna);
-        if (fixo[linha][coluna]) {
-            return false; // célula fixa, não pode ser alterada
-        }
-        if (valor < 0 || valor > TAMANHO) {
-            throw new IllegalArgumentException("Valor deve ser entre 0 e " + TAMANHO);
-        }
-        grade[linha][coluna] = valor;
+        Celula celula = getCelula(linha, coluna);
+        if (celula.isFixo()) return false;
+        celula.setValor(valor);
         return true;
     }
 
     public boolean isFixo(int linha, int coluna) {
-        validarPosicao(linha, coluna);
-        return fixo[linha][coluna];
+        return getCelula(linha, coluna).isFixo();
     }
 
     public boolean isVazio(int linha, int coluna) {
-        validarPosicao(linha, coluna);
-        return grade[linha][coluna] == VAZIO;
+        return getCelula(linha, coluna).isVazio();
     }
 
-    public boolean isCompleto() {
-        for (int i = 0; i < TAMANHO; i++) {
-            for (int j = 0; j < TAMANHO; j++) {
-                if (grade[i][j] == VAZIO) return false;
-            }
-        }
+    // ── Acesso via Posicao (API OOP) ──────────────────────────────────────────
+
+    public int getValor(Posicao posicao) {
+        return getCelula(posicao).getValor();
+    }
+
+    public boolean setValor(Posicao posicao, int valor) {
+        Celula celula = getCelula(posicao);
+        if (celula.isFixo()) return false;
+        celula.setValor(valor);
         return true;
     }
 
+    public boolean isFixo(Posicao posicao) {
+        return getCelula(posicao).isFixo();
+    }
+
+    public boolean isVazio(Posicao posicao) {
+        return getCelula(posicao).isVazio();
+    }
+
+    public Celula getCelula(Posicao posicao) {
+        return getCelula(posicao.linha(), posicao.coluna());
+    }
+
+    // ── Estado geral ──────────────────────────────────────────────────────────
+
+    public boolean isCompleto() {
+        for (int i = 0; i < TAMANHO; i++)
+            for (int j = 0; j < TAMANHO; j++)
+                if (celulas[i][j].isVazio()) return false;
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da grade como int[][] (compatibilidade e serialização).
+     */
     public int[][] getGrade() {
         int[][] copia = new int[TAMANHO][TAMANHO];
-        for (int i = 0; i < TAMANHO; i++) {
-            System.arraycopy(grade[i], 0, copia[i], 0, TAMANHO);
-        }
+        for (int i = 0; i < TAMANHO; i++)
+            for (int j = 0; j < TAMANHO; j++)
+                copia[i][j] = celulas[i][j].getValor();
         return copia;
     }
 
+    public void limparCelula(Posicao posicao) {
+        setValor(posicao, VAZIO);
+    }
+
     public void limparCelula(int linha, int coluna) {
+        setValor(linha, coluna, VAZIO);
+    }
+
+    // ── Interno ───────────────────────────────────────────────────────────────
+
+    private Celula getCelula(int linha, int coluna) {
         validarPosicao(linha, coluna);
-        if (!fixo[linha][coluna]) {
-            grade[linha][coluna] = VAZIO;
-        }
+        return celulas[linha][coluna];
     }
 
     private void validarPosicao(int linha, int coluna) {
         if (linha < 0 || linha >= TAMANHO || coluna < 0 || coluna >= TAMANHO) {
             throw new IllegalArgumentException(
-                "Posição inválida: [%d][%d]. Deve ser entre 0 e %d".formatted(linha, coluna, TAMANHO - 1)
+                "Posição inválida: [%d][%d]. Deve ser entre 0 e %d."
+                    .formatted(linha, coluna, TAMANHO - 1)
             );
         }
     }
@@ -94,19 +136,12 @@ public class Tabuleiro {
         var sb = new StringBuilder();
         sb.append("╔═══════╦═══════╦═══════╗\n");
         for (int i = 0; i < TAMANHO; i++) {
-            if (i > 0 && i % TAMANHO_BLOCO == 0) {
+            if (i > 0 && i % TAMANHO_BLOCO == 0)
                 sb.append("╠═══════╬═══════╬═══════╣\n");
-            }
             sb.append("║ ");
             for (int j = 0; j < TAMANHO; j++) {
-                if (j > 0 && j % TAMANHO_BLOCO == 0) {
-                    sb.append("║ ");
-                }
-                if (grade[i][j] == VAZIO) {
-                    sb.append(". ");
-                } else {
-                    sb.append(grade[i][j]).append(" ");
-                }
+                if (j > 0 && j % TAMANHO_BLOCO == 0) sb.append("║ ");
+                sb.append(celulas[i][j]).append(" ");
             }
             sb.append("║\n");
         }

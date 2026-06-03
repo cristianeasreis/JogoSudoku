@@ -6,7 +6,11 @@ import com.sudoku.model.Dificuldade;
 import java.util.Scanner;
 
 /**
- * Interface de linha de comando para o Jogo Sudoku.
+ * Interface de linha de comando do Jogo Sudoku.
+ *
+ * <p>Princípio OOP aplicado: <b>Separação de Responsabilidades</b> —
+ * esta classe cuida apenas da interação com o usuário via console,
+ * delegando toda a lógica ao {@link JogoSudoku}.
  */
 public class ConsoleSudoku {
 
@@ -14,7 +18,7 @@ public class ConsoleSudoku {
     private final Scanner scanner;
 
     public ConsoleSudoku() {
-        this.jogo = new JogoSudoku();
+        this.jogo = JogoSudoku.criar();
         this.scanner = new Scanner(System.in);
     }
 
@@ -27,22 +31,15 @@ public class ConsoleSudoku {
             String opcao = scanner.nextLine().trim();
 
             continuar = switch (opcao) {
-                case "1" -> {
-                    iniciarNovoJogo();
-                    yield true;
-                }
-                case "2" -> {
-                    System.out.println("\n👋 Obrigado por jogar! Até logo!");
-                    yield false;
-                }
-                default -> {
-                    System.out.println("❗ Opção inválida. Tente novamente.");
-                    yield true;
-                }
+                case "1" -> { iniciarNovoJogo(); yield true; }
+                case "2" -> { System.out.println("\n👋 Obrigado por jogar! Até logo!"); yield false; }
+                default  -> { System.out.println("❗ Opção inválida. Tente novamente."); yield true; }
             };
         }
         scanner.close();
     }
+
+    // ── Menu principal ────────────────────────────────────────────────────────
 
     private void exibirBoasVindas() {
         System.out.println("""
@@ -60,10 +57,11 @@ public class ConsoleSudoku {
             ═══════════════════════════
              1. Novo Jogo
              2. Sair
-            ═══════════════════════════
-            Escolha uma opção:\s""");
+            ═══════════════════════════""");
         System.out.print("> ");
     }
+
+    // ── Novo jogo ─────────────────────────────────────────────────────────────
 
     private void iniciarNovoJogo() {
         Dificuldade dificuldade = escolherDificuldade();
@@ -78,9 +76,9 @@ public class ConsoleSudoku {
             
             Escolha a dificuldade:
             ─────────────────────
-             1. Fácil   (36 números)
-             2. Médio   (27 números)
-             3. Difícil (20 números)
+             1. Fácil   (~36 números)
+             2. Médio   (~27 números)
+             3. Difícil (~20 números)
              0. Voltar
             """);
         System.out.print("> ");
@@ -90,17 +88,17 @@ public class ConsoleSudoku {
             case "2" -> Dificuldade.MEDIO;
             case "3" -> Dificuldade.DIFICIL;
             case "0" -> null;
-            default -> {
-                System.out.println("❗ Opção inválida, usando Fácil.");
-                yield Dificuldade.FACIL;
-            }
+            default  -> { System.out.println("❗ Opção inválida, usando Fácil."); yield Dificuldade.FACIL; }
         };
     }
+
+    // ── Loop de jogo ──────────────────────────────────────────────────────────
 
     private void loopDeJogo() {
         while (jogo.isJogoAtivo()) {
             System.out.println("\n" + jogo.getTabuleiro());
-            System.out.printf("Erros: %d/3%n", jogo.getErros());
+            System.out.printf("Estado: %s | Erros: %d/%d%n",
+                jogo.getEstado(), jogo.getErros(), jogo.getMaxErros());
             exibirMenuJogo();
 
             String entrada = scanner.nextLine().trim().toLowerCase();
@@ -111,17 +109,14 @@ public class ConsoleSudoku {
                     jogo.resolverAutomaticamente();
                     System.out.println(jogo.getTabuleiro());
                 }
-                case "n" -> {
-                    System.out.println("Voltando ao menu principal...");
-                    return;
-                }
-                default -> processarJogada(entrada);
+                case "n" -> { System.out.println("Voltando ao menu principal..."); return; }
+                default  -> processarJogada(entrada);
             }
         }
 
-        // Exibe estado final
         if (jogo.getTabuleiro() != null) {
             System.out.println("\n" + jogo.getTabuleiro());
+            System.out.println("Estado final: " + jogo.getEstado());
         }
     }
 
@@ -130,9 +125,9 @@ public class ConsoleSudoku {
             ─────────────────────────────────────
             Comandos:
               linha coluna valor  → Ex: 3 5 7
-              d                  → Dica
-              r                  → Resolver
-              n                  → Novo jogo
+              d                  → 💡 Dica
+              r                  → 🤖 Resolver
+              n                  → 🔄 Novo jogo
             ─────────────────────────────────────""");
         System.out.print("> ");
     }
@@ -144,10 +139,9 @@ public class ConsoleSudoku {
                 System.out.println("❗ Formato inválido. Use: linha coluna valor (ex: 3 5 7)");
                 return;
             }
-
-            int linha = Integer.parseInt(partes[0]);
+            int linha  = Integer.parseInt(partes[0]);
             int coluna = Integer.parseInt(partes[1]);
-            int valor = Integer.parseInt(partes[2]);
+            int valor  = Integer.parseInt(partes[2]);
 
             var resultado = jogo.jogar(linha, coluna, valor);
             System.out.println(resultado.mensagem());
@@ -157,4 +151,3 @@ public class ConsoleSudoku {
         }
     }
 }
-

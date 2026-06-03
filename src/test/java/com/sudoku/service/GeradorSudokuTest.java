@@ -17,7 +17,8 @@ class GeradorSudokuTest {
 
     @BeforeEach
     void setUp() {
-        gerador = new GeradorSudoku();
+        // Demonstra inversão de dependência: GeradorSudoku recebe ISolver
+        gerador = new GeradorSudoku(new SolverSudoku());
         validador = new ValidadorSudoku();
     }
 
@@ -26,7 +27,6 @@ class GeradorSudokuTest {
     @DisplayName("Tabuleiro gerado deve ser válido para todas as dificuldades")
     void tabuleiroGeradoDeveSerValido(Dificuldade dificuldade) {
         Tabuleiro tabuleiro = gerador.gerar(dificuldade);
-
         assertNotNull(tabuleiro);
         assertTrue(validador.isTabuleirValido(tabuleiro));
     }
@@ -38,15 +38,10 @@ class GeradorSudokuTest {
         Tabuleiro tabuleiro = gerador.gerar(dificuldade);
         int[][] grade = tabuleiro.getGrade();
 
-        int preenchidas = 0;
-        int vazias = 0;
-
-        for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
-            for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
-                if (grade[i][j] == Tabuleiro.VAZIO) vazias++;
-                else preenchidas++;
-            }
-        }
+        int preenchidas = 0, vazias = 0;
+        for (int i = 0; i < Tabuleiro.TAMANHO; i++)
+            for (int j = 0; j < Tabuleiro.TAMANHO; j++)
+                if (grade[i][j] == Tabuleiro.VAZIO) vazias++; else preenchidas++;
 
         assertTrue(preenchidas > 0, "Deve ter células preenchidas");
         assertTrue(vazias > 0, "Deve ter células vazias para o jogador completar");
@@ -59,8 +54,7 @@ class GeradorSudokuTest {
         Tabuleiro tabuleiro = gerador.gerar(dificuldade);
         Tabuleiro copia = new Tabuleiro(tabuleiro.getGrade());
 
-        boolean solucionavel = validador.resolver(copia);
+        boolean solucionavel = new SolverSudoku().resolver(copia);
         assertTrue(solucionavel, "O tabuleiro gerado deve ter solução");
     }
 }
-

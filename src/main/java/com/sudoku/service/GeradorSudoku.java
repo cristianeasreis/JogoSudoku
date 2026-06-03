@@ -1,39 +1,48 @@
 package com.sudoku.service;
 
+import com.sudoku.interfaces.IGerador;
+import com.sudoku.interfaces.ISolver;
 import com.sudoku.model.Dificuldade;
 import com.sudoku.model.Tabuleiro;
 
 import java.util.Random;
 
 /**
- * Serviço responsável por gerar puzzles de Sudoku.
+ * Gerador de puzzles de Sudoku.
+ *
+ * <p>Princípio OOP aplicado:
+ * <ul>
+ *   <li><b>Polimorfismo</b> — implementa {@link IGerador}.</li>
+ *   <li><b>Inversão de Dependência</b> — recebe {@link ISolver} via
+ *       construtor, desacoplando a geração da estratégia de resolução.</li>
+ * </ul>
  */
-public class GeradorSudoku {
+public class GeradorSudoku implements IGerador {
 
-    private final ValidadorSudoku validador;
+    private final ISolver solver;
     private final Random random;
 
-    public GeradorSudoku() {
-        this.validador = new ValidadorSudoku();
+    public GeradorSudoku(ISolver solver) {
+        this.solver = solver;
         this.random = new Random();
     }
 
-    /**
-     * Gera um novo tabuleiro de Sudoku com a dificuldade especificada.
-     */
+    @Override
     public Tabuleiro gerar(Dificuldade dificuldade) {
-        // Cria tabuleiro completo e válido
+        // 1. Gera um tabuleiro completamente resolvido
         Tabuleiro tabuleiroCompleto = new Tabuleiro();
-        validador.resolver(tabuleiroCompleto);
+        solver.resolver(tabuleiroCompleto);
 
-        // Remove células de acordo com a dificuldade
-        int[][] gradaCompleta = tabuleiroCompleto.getGrade();
-        int celulasParaRemover = Tabuleiro.TAMANHO * Tabuleiro.TAMANHO - dificuldade.getCelulasPreenchidas();
+        // 2. Remove células de acordo com a dificuldade
+        int[][] grade = tabuleiroCompleto.getGrade();
+        int celulasParaRemover = Tabuleiro.TAMANHO * Tabuleiro.TAMANHO
+            - dificuldade.getCelulasPreenchidas();
+        removerCelulas(grade, celulasParaRemover);
 
-        removerCelulas(gradaCompleta, celulasParaRemover);
-
-        return new Tabuleiro(gradaCompleta);
+        return new Tabuleiro(grade);
     }
+
+    // ── Privados ──────────────────────────────────────────────────────────────
 
     private void removerCelulas(int[][] grade, int quantidade) {
         int removidas = 0;
@@ -43,7 +52,6 @@ public class GeradorSudoku {
         while (removidas < quantidade && tentativas < maxTentativas) {
             int linha = random.nextInt(Tabuleiro.TAMANHO);
             int coluna = random.nextInt(Tabuleiro.TAMANHO);
-
             if (grade[linha][coluna] != Tabuleiro.VAZIO) {
                 grade[linha][coluna] = Tabuleiro.VAZIO;
                 removidas++;
@@ -52,4 +60,3 @@ public class GeradorSudoku {
         }
     }
 }
-

@@ -1,118 +1,154 @@
 package com.sudoku.controller;
 
-import com.sudoku.model.Dificuldade;
-import com.sudoku.model.Tabuleiro;
+import com.sudoku.interfaces.IGerador;
+import com.sudoku.interfaces.ISolver;
+import com.sudoku.interfaces.IValidador;
+import com.sudoku.model.*;
 import com.sudoku.service.GeradorSudoku;
+import com.sudoku.service.SolverSudoku;
 import com.sudoku.service.ValidadorSudoku;
 
 /**
- * Controlador principal do jogo Sudoku.
- * Gerencia o estado do jogo e as interações do jogador.
+ * Controlador principal do Jogo Sudoku.
+ *
+ * <p>Orquestra o ciclo de vida de uma partida: início, jogadas, dicas,
+ * resolução automática e encerramento.
+ *
+ * <p>Princípios OOP aplicados:
+ * <ul>
+ *   <li><b>Inversão de Dependência</b> — depende das interfaces {@link IGerador},
+ *       {@link IValidador} e {@link ISolver}, não de implementações concretas.</li>
+ *   <li><b>Encapsulamento</b> — estado do jogo exposto apenas via
+ *       {@link EstadoJogo}, sem booleanos espalhados.</li>
+ *   <li><b>Factory Method</b> — {@link #criar()} fornece a configuração
+ *       padrão sem expor a construção manual ao cliente.</li>
+ * </ul>
  */
 public class JogoSudoku {
 
+    private static final int MAX_ERROS = 3;
+
+    private final IGerador gerador;
+    private final IValidador validador;
+    private final ISolver solver;
+
     private Tabuleiro tabuleiro;
     private Tabuleiro solucao;
-    private final GeradorSudoku gerador;
-    private final ValidadorSudoku validador;
-    private boolean jogoAtivo;
+    private EstadoJogo estado;
     private Dificuldade dificuldadeAtual;
     private int erros;
-    private int maxErros;
 
-    public JogoSudoku() {
-        this.gerador = new GeradorSudoku();
-        this.validador = new ValidadorSudoku();
-        this.maxErros = 3;
-        this.jogoAtivo = false;
+    // ── Construtores ──────────────────────────────────────────────────────────
+
+    /**
+     * Construtor completo com injeção de dependência.
+     * Facilita testes unitários com mocks/stubs.
+     */
+    public JogoSudoku(IGerador gerador, IValidador validador, ISolver solver) {
+        this.gerador = gerador;
+        this.validador = validador;
+        this.solver = solver;
+        this.estado = EstadoJogo.AGUARDANDO;
+        this.erros = 0;
     }
 
     /**
-     * Inicia um novo jogo com a dificuldade especificada.
+     * Factory method — cria o controlador com as implementações padrão.
+     *
+     * @return instância pronta para uso
      */
+    public static JogoSudoku criar() {
+        ISolver solver = new SolverSudoku();
+        IValidador validador = new ValidadorSudoku();
+        IGerador gerador = new GeradorSudoku(solver);
+        return new JogoSudoku(gerador, validador, solver);
+    }
+
+    // ── Ciclo de jogo ─────────────────────────────────────────────────────────
+
+    /** Inicia uma nova partida com a dificuldade escolhida. */
     public void novoJogo(Dificuldade dificuldade) {
         this.dificuldadeAtual = dificuldade;
         this.tabuleiro = gerador.gerar(dificuldade);
         this.erros = 0;
-        this.jogoAtivo = true;
+        this.estado = EstadoJogo.EM_ANDAMENTO;
 
-        // Gera a solução
+        // Pré-computa a solução a partir do estado inicial
         this.solucao = new Tabuleiro(tabuleiro.getGrade());
-        validador.resolver(this.solucao);
+        solver.resolver(this.solucao);
 
         System.out.println("\n🎮 Novo jogo iniciado! Dificuldade: " + dificuldade);
-        System.out.println("Máximo de erros permitidos: " + maxErros);
+        System.out.println("Máximo de erros permitidos: " + MAX_ERROS);
     }
 
     /**
-     * Realiza uma jogada no tabuleiro.
-     * @return ResultadoJogada com o resultado da operação
+     * Realiza uma jogada usando as coordenadas do usuário (1-based).
+     *
+     * @param linha  linha informada pelo usuário (1–9)
+     * @param coluna coluna informada pelo usuário (1–9)
+     * @param valor  valor a inserir (1–9)
+     * @return resultado da jogada
      */
     public ResultadoJogada jogar(int linha, int coluna, int valor) {
-        if (!jogoAtivo) {
-            return new ResultadoJogada(false, "Nenhum jogo ativo. Inicie um novo jogo.");
+        if (!estado.isAtivo()) {
+            return ResultadoJogada.falha("Nenhum jogo ativo. Inicie um novo jogo.");
         }
 
-        // Validar índices (1-9 para o usuário, 0-8 internamente)
-        int l = linha - 1;
-        int c = coluna - 1;
-
-        if (l < 0 || l >= Tabuleiro.TAMANHO || c < 0 || c >= Tabuleiro.TAMANHO) {
-            return new ResultadoJogada(false, "Posição inválida. Use valores entre 1 e 9.");
+        Posicao posicao;
+        try {
+            posicao = Posicao.deEntradaUsuario(linha, coluna);
+        } catch (IllegalArgumentException e) {
+            return ResultadoJogada.falha("Posição inválida. Use valores entre 1 e 9.");
         }
 
-        if (tabuleiro.isFixo(l, c)) {
-            return new ResultadoJogada(false, "Esta célula é fixa e não pode ser alterada.");
+        if (tabuleiro.isFixo(posicao)) {
+            return ResultadoJogada.falha("Esta célula é fixa e não pode ser alterada.");
         }
 
-        if (!validador.isMovimentoValido(tabuleiro, l, c, valor)) {
+        if (!validador.isMovimentoValido(tabuleiro, posicao, valor)) {
             erros++;
-            String msg = "❌ Movimento inválido! Erros: %d/%d".formatted(erros, maxErros);
-            if (erros >= maxErros) {
-                jogoAtivo = false;
-                return new ResultadoJogada(false, msg + "\n💀 Você perdeu! Máximo de erros atingido.");
+            String msg = "❌ Movimento inválido! Erros: %d/%d".formatted(erros, MAX_ERROS);
+            if (erros >= MAX_ERROS) {
+                estado = EstadoJogo.PERDEU;
+                return ResultadoJogada.falha(msg + "\n💀 " + estado.getDescricao());
             }
-            return new ResultadoJogada(false, msg);
+            return ResultadoJogada.falha(msg);
         }
 
-        tabuleiro.setValor(l, c, valor);
+        tabuleiro.setValor(posicao, valor);
 
         if (validador.isSolucionado(tabuleiro)) {
-            jogoAtivo = false;
-            return new ResultadoJogada(true, "🎉 Parabéns! Você completou o Sudoku!");
+            estado = EstadoJogo.GANHOU;
+            return ResultadoJogada.sucesso("🎉 " + estado.getDescricao());
         }
 
-        return new ResultadoJogada(true, "✅ Movimento válido!");
+        return ResultadoJogada.sucesso("✅ Movimento válido!");
     }
 
     /**
-     * Exibe uma dica ao jogador (revela um valor correto).
+     * Revela o valor correto da próxima célula vazia como dica.
+     *
+     * @return mensagem com a dica ou aviso se não houver células vazias
      */
     public String pedirDica() {
-        if (!jogoAtivo) return "Nenhum jogo ativo.";
+        if (!estado.isAtivo()) return "Nenhum jogo ativo.";
 
-        for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
-            for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
-                if (tabuleiro.isVazio(i, j)) {
-                    int valorCorreto = solucao.getValor(i, j);
-                    tabuleiro.setValor(i, j, valorCorreto);
-                    return "💡 Dica: Posição [%d,%d] = %d".formatted(i + 1, j + 1, valorCorreto);
-                }
-            }
-        }
-        return "Não há mais células vazias.";
+        return solver.encontrarProximaVazia(tabuleiro)
+            .map(posicao -> {
+                int valorCorreto = solucao.getValor(posicao);
+                tabuleiro.setValor(posicao, valorCorreto);
+                return "💡 Dica: posição %s = %d".formatted(posicao, valorCorreto);
+            })
+            .orElse("Não há mais células vazias.");
     }
 
-    /**
-     * Resolve automaticamente o tabuleiro.
-     */
+    /** Resolve o tabuleiro automaticamente usando a solução pré-computada. */
     public void resolverAutomaticamente() {
-        if (!jogoAtivo) {
+        if (!estado.isAtivo()) {
             System.out.println("Nenhum jogo ativo.");
             return;
         }
 
-        // Copia a solução para o tabuleiro
         int[][] gradeSolucao = solucao.getGrade();
         for (int i = 0; i < Tabuleiro.TAMANHO; i++) {
             for (int j = 0; j < Tabuleiro.TAMANHO; j++) {
@@ -121,29 +157,16 @@ public class JogoSudoku {
                 }
             }
         }
-        jogoAtivo = false;
+        estado = EstadoJogo.GANHOU;
         System.out.println("🤖 Tabuleiro resolvido automaticamente.");
     }
 
-    public Tabuleiro getTabuleiro() {
-        return tabuleiro;
-    }
+    // ── Getters ───────────────────────────────────────────────────────────────
 
-    public boolean isJogoAtivo() {
-        return jogoAtivo;
-    }
-
-    public int getErros() {
-        return erros;
-    }
-
-    public Dificuldade getDificuldadeAtual() {
-        return dificuldadeAtual;
-    }
-
-    /**
-     * Representa o resultado de uma jogada.
-     */
-    public record ResultadoJogada(boolean sucesso, String mensagem) {}
+    public Tabuleiro getTabuleiro()         { return tabuleiro; }
+    public EstadoJogo getEstado()           { return estado; }
+    public boolean isJogoAtivo()           { return estado.isAtivo(); }
+    public int getErros()                  { return erros; }
+    public int getMaxErros()               { return MAX_ERROS; }
+    public Dificuldade getDificuldadeAtual(){ return dificuldadeAtual; }
 }
-
